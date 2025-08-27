@@ -1,0 +1,13 @@
+# CMake 和构建产物
+
+CMakeFiles/
+Makefile
+cmake_install.cmake
+build/
+
+# 编译输出
+*.o
+*.so
+*.a
+test_threadpool  # 根据你的可执行文件名调整
+a.out
