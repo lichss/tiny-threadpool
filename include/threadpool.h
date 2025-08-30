@@ -23,10 +23,10 @@ public:
     ~ThreadPool();
     ThreadPool& operator=(const ThreadPool&) = delete; /*禁用拷贝赋值。这对于整个线程池库非常重要 */
     int32_t creat_thread(func_ptr f,void* args,func_ptr cb, void* cb_args);
-    uint32_t detach_thread(func_ptr f,void* args); /*等着删*/
-    pool_thread_id detach_thread_(pool_thread_id id);
-    uint32_t join_thread(func_ptr f,void* args);
-    uint32_t join_thread_(pool_thread_id id); /*等着删 */
+    uint32_t create_detach_thread(func_ptr f,void* args); /*等着删*/
+    pool_thread_id detach_thread_id(pool_thread_id id);
+    uint32_t create_join_thread(func_ptr f,void* args); /*等着删 */
+    int32_t join_thread_id(pool_thread_id id); 
     int32_t start_thread(func_ptr f,void* args,func_ptr cb, void* cb_args);
     bool empty();
     uint32_t MAX_thread_N;

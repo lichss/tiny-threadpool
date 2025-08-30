@@ -48,7 +48,7 @@ int32_t ThreadPool::creat_thread(func_ptr f,void* args,func_ptr cb, void* cb_arg
     return -1;
 }
 
-uint32_t ThreadPool::detach_thread(func_ptr f,void* args){
+uint32_t ThreadPool::create_detach_thread(func_ptr f,void* args){
     std::lock_guard<std::recursive_mutex> lock(status_mutex);
     for(uint32_t i=0; i<MAX_thread_N;i++){
         if(thread_status[i] == 0){
@@ -61,7 +61,7 @@ uint32_t ThreadPool::detach_thread(func_ptr f,void* args){
     return -1;
 }
 
-pool_thread_id ThreadPool::detach_thread_(pool_thread_id id){
+pool_thread_id ThreadPool::detach_thread_id(pool_thread_id id){
     if(id >= MAX_thread_N)
         return -1;
     std::lock_guard<std::recursive_mutex> lock(status_mutex);
@@ -77,7 +77,7 @@ pool_thread_id ThreadPool::detach_thread_(pool_thread_id id){
     return -1;
 }
 
-uint32_t ThreadPool::join_thread(func_ptr f,void* args){
+uint32_t ThreadPool::create_join_thread(func_ptr f,void* args){
     std::lock_guard<std::recursive_mutex> lock(status_mutex);
     for(uint32_t i=0; i<MAX_thread_N;i++){
         if(thread_status[i] == 0){
@@ -89,20 +89,34 @@ uint32_t ThreadPool::join_thread(func_ptr f,void* args){
     return -1;
 }
 
-uint32_t ThreadPool::join_thread_(uint32_t id){
+
+
+int32_t ThreadPool::join_thread_id(uint32_t id){
     if(id >= MAX_thread_N)
         return -1;
-    std::lock_guard<std::recursive_mutex> lock(status_mutex);
-    if(thread_status[id] == THP_IDLE){
-        return -1;
-    }else{
-        if(pool[id].joinable()){
-            pool[id].join();
-            thread_status[id] = THP_IDLE;
-            return id;
-        }
+
+    // 先判断状态并取出 joinable 状态
+    bool need_join = false;
+    {
+        std::lock_guard<std::recursive_mutex> lock(status_mutex);
+        if(thread_status[id] == THP_IDLE)
+            return -1;
+        if(pool[id].joinable())
+            need_join = true;
+        else
+            return -1;
     }
-    return -1;
+
+    // 在锁外 join，避免阻塞其他线程
+    if(need_join)
+        pool[id].join();
+
+    // join 后再更新状态
+    {
+        std::lock_guard<std::recursive_mutex> lock(status_mutex);
+        thread_status[id] = THP_IDLE;
+    }
+    return id;
 }
 
 int32_t ThreadPool::push_task(func_ptr task,void* args, func_ptr cb, void* cb_args){

@@ -57,7 +57,7 @@ int main(){
     std::cout <<"task id: " << task_id1 << ", " << task_id2 << ", " << task_id3 << "\n";
 
     int join_id = 
-    th_pool.join_thread_(task_id2);
+    th_pool.join_thread_id(task_id2);
     std::cout <<"join id: " << join_id << "\n";
     // std::this_thread::sleep_for(std::chrono::seconds(3));
     exit(0);
