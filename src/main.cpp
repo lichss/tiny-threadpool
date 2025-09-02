@@ -58,11 +58,18 @@ int main(){
 
     int task_id4 = th_pool.push_task(getask,&args4,nullptr,nullptr);
 
-    int task_id5 = th_pool.push_task(getask,&args5,nullptr,nullptr);
 
     // std::cout <<"task id: " << task_id1 << ", " << task_id2 << ", " << task_id3 << "\n";
     // th_pool.join_thread_id(task_id3);
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+
+    if(0 ){/*need help*/
+        std::this_thread::sleep_for(std::chrono::seconds(3));
+        th_pool.thread_status[0] = THP_IDLE; 
+    }
+
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+    int task_id5 = th_pool.push_task(getask,&args5,nullptr,nullptr);
+    std::this_thread::sleep_for(std::chrono::seconds(3));
     std::cout << task_id1 << task_id2 << task_id3 << task_id4 << task_id5;
     // return 0;
     exit(0);

@@ -34,10 +34,10 @@ public:
     int32_t push_task(func_ptr task,void* args, func_ptr cb, void* cb_args);
     int32_t arrange_task(); 
     void reset_thread_to_idle(uint32_t id);
+    std::vector<uint32_t> thread_status; // 0-idle, 1-busy, 2-finish
 
 private:
     uint32_t current_thread_n = 0;
-    std::vector<uint32_t> thread_status; // 0-idle, 1-busy, 2-finish
     std::vector<std::thread> thPool;
 
     uint32_t MAX_thread_N;

@@ -166,103 +166,57 @@ int32_t ThreadPool::start_thread(func_ptr f,void* args,func_ptr cb, void* cb_arg
     return -1; 
 }
 
-// int32_t ThreadPool::arrange_task(){
-//     std::lock_guard<std::recursive_mutex> lock(status_mutex);
-//     if(task_queue.empty())
-//         return -1;
-//     for(uint32_t i=0; i<MAX_thread_N;i++){
-//         if(thread_status[i] == THP_IDLE){
-//             if(task_queue.empty())
-//                 break;
-//             auto task_list = task_queue.front();
-//             task_queue.pop();
-//             thread_status[i] = THP_BUSY;
-//             thPool[i] = std::thread([this,task_list,i](){
-//                 for(auto f_list : task_list){
-//                     func_ptr f = (func_ptr)f_list[0];
-//                     void* args = f_list[1];
-//                     func_ptr cb = (func_ptr)f_list[2];
-//                     void* cb_args = f_list[3];
-//                     f(args);
-//                     if(cb != nullptr){
-//                         cb(cb_args);
-//                     }
-//                 }
-//                 this->thread_status[i] = THP_IDLE;
-//             });
-//             return i;
-
-//             // pool[i].detach();
-//         }
-//     }
-//     return -1;
-// }
-
 int32_t ThreadPool::arrange_task(){
     std::lock_guard<std::recursive_mutex> lock(status_mutex);
     if(task_queue.empty())
         return -1;
-    for(uint32_t i=0; i<MAX_thread_N; i++){
-        if(thread_status[i] == THP_IDLE){
-            // 如果线程对象已经结束，先回收
-            if(thPool[i].joinable()) {
-                thPool[i].join();
-            }
-            // 重新创建线程对象
-            if(task_queue.empty())
-                break;
-            auto task_list = task_queue.front();
-            task_queue.pop();
-            thread_status[i] = THP_BUSY;
-            thPool[i] = std::thread([this,task_list,i](){
-                for(auto f_list : task_list){
-                    func_ptr f = (func_ptr)f_list[0];
-                    void* args = f_list[1];
-                    func_ptr cb = (func_ptr)f_list[2];
-                    void* cb_args = f_list[3];
-                    f(args);
-                    if(cb != nullptr){
-                        cb(cb_args);
-                    }
-                }
-                this->thread_status[i] = THP_IDLE;
-            });
-            return i;
+    for(uint32_t i=0; i<MAX_thread_N;i++){
+
+        if(thread_status[i] == THP_IDLE && thPool[i].joinable()){
+            thPool[i].join();
         }
-        // 如果线程对象不是空闲但已经结束，也可以重建
-        else if(!thPool[i].joinable()) {
-            // 重新创建线程对象
+
+        if(thread_status[i] == THP_IDLE){
             if(task_queue.empty())
                 break;
             auto task_list = task_queue.front();
             task_queue.pop();
             thread_status[i] = THP_BUSY;
+
             thPool[i] = std::thread([this,task_list,i](){
-                for(auto f_list : task_list){
-                    func_ptr f = (func_ptr)f_list[0];
-                    void* args = f_list[1];
-                    func_ptr cb = (func_ptr)f_list[2];
-                    void* cb_args = f_list[3];
-                    f(args);
-                    if(cb != nullptr){
-                        cb(cb_args);
-                    }
+                auto& f_list = task_list[0];
+
+                func_ptr f = (func_ptr)f_list[0];
+                void* args = f_list[1];
+                func_ptr cb = (func_ptr)f_list[2];
+                void* cb_args = f_list[3];
+
+                f(args);
+                if(cb != nullptr){
+                    cb(cb_args);
                 }
-                this->thread_status[i] = THP_IDLE;
+                reset_thread_to_idle(i);
+                // thread_status[i] = THP_IDLE;
             });
+                
+
             return i;
+
+            // pool[i].detach();
         }
     }
     return -1;
 }
 
+
+
 void ThreadPool::reset_thread_to_idle(uint32_t id) {
     if (id >= MAX_thread_N) return;
     std::lock_guard<std::recursive_mutex> lock(status_mutex);
+    // std::cout << id << "aplly idle\n";
     thread_status[id] = THP_IDLE; // 0 表示空闲
-    // if (thread_status[id] == 2) { // 2 表示完成
-    //     thread_status[id] = THP_IDLE; // 0 表示空闲
-    // }
+    // std::cout << id <<"status:"<<thread_status[id] <<"\n"; 
+
 }
 
 /**
