@@ -7,18 +7,18 @@ ThreadPool::ThreadPool(uint32_t max_thread_n){
     std::lock_guard<std::recursive_mutex> lock(status_mutex);
 
     MAX_thread_N = max_thread_n;
-    pool.reserve(MAX_thread_N);
+    thPool.reserve(MAX_thread_N);
     thread_status.resize(MAX_thread_N, 0);
     for(uint32_t i=0; i<MAX_thread_N; i++){
-        pool.emplace_back();
+        thPool.emplace_back();
     }
 
 }
 ThreadPool::~ThreadPool(){
     std::cout <<"waiting \n";
     for(uint32_t i=0; i<MAX_thread_N; i++){
-        if(pool[i].joinable()){
-            pool[i].join();
+        if(thPool[i].joinable()){
+            thPool[i].join();
         }
     }
     std::cout <<"end \n";
@@ -26,7 +26,7 @@ ThreadPool::~ThreadPool(){
 
 
 bool ThreadPool::empty(){
-    return pool.empty();
+    return thPool.empty();
 }
 
 int32_t ThreadPool::creat_thread(func_ptr f,void* args,func_ptr cb, void* cb_args){
@@ -35,7 +35,7 @@ int32_t ThreadPool::creat_thread(func_ptr f,void* args,func_ptr cb, void* cb_arg
     for(uint32_t i=0; i<MAX_thread_N;i++){
         if(thread_status[i] == THP_IDLE){
             thread_status[i] = THP_BUSY;
-            pool[i] = std::thread([this,f,args,cb,cb_args,i](){
+            thPool[i] = std::thread([this,f,args,cb,cb_args,i](){
                 f(args);
                 if(cb != nullptr){
                     cb(cb_args);
@@ -53,8 +53,8 @@ uint32_t ThreadPool::create_detach_thread(func_ptr f,void* args){
     for(uint32_t i=0; i<MAX_thread_N;i++){
         if(thread_status[i] == 0){
             thread_status[i] = 1;
-            pool[i] = std::thread(f, args);
-            pool[i].detach();
+            thPool[i] = std::thread(f, args);
+            thPool[i].detach();
             return i;
         }
     }
@@ -68,8 +68,8 @@ pool_thread_id ThreadPool::detach_thread_id(pool_thread_id id){
     if(thread_status[id] == THP_IDLE)
         return -1;
     if(thread_status[id] == THP_BUSY){
-        if(pool[id].joinable()){
-            pool[id].detach();
+        if(thPool[id].joinable()){
+            thPool[id].detach();
             return id;
         }
     }
@@ -82,7 +82,7 @@ uint32_t ThreadPool::create_join_thread(func_ptr f,void* args){
     for(uint32_t i=0; i<MAX_thread_N;i++){
         if(thread_status[i] == 0){
             thread_status[i] = 1;
-            pool[i] = std::thread(f, args);
+            thPool[i] = std::thread(f, args);
             return i;
         }
     }
@@ -101,7 +101,7 @@ int32_t ThreadPool::join_thread_id(uint32_t id){
         std::lock_guard<std::recursive_mutex> lock(status_mutex);
         if(thread_status[id] == THP_IDLE)
             return -1;
-        if(pool[id].joinable())
+        if(thPool[id].joinable())
             need_join = true;
         else
             return -1;
@@ -109,7 +109,7 @@ int32_t ThreadPool::join_thread_id(uint32_t id){
 
     // 在锁外 join，避免阻塞其他线程
     if(need_join)
-        pool[id].join();
+        thPool[id].join();
 
     // join 后再更新状态
     {
@@ -146,7 +146,7 @@ int32_t ThreadPool::start_thread(func_ptr f,void* args,func_ptr cb, void* cb_arg
             auto task_list = task_queue.front();
             task_queue.pop();
             thread_status[i] = THP_BUSY;
-            pool[i] = std::thread([this,task_list,i](){
+            thPool[i] = std::thread([this,task_list,i](){
                 for(auto f_list : task_list){
                     func_ptr f = (func_ptr)f_list[0];
                     void* args = f_list[1];
@@ -166,18 +166,55 @@ int32_t ThreadPool::start_thread(func_ptr f,void* args,func_ptr cb, void* cb_arg
     return -1; 
 }
 
+// int32_t ThreadPool::arrange_task(){
+//     std::lock_guard<std::recursive_mutex> lock(status_mutex);
+//     if(task_queue.empty())
+//         return -1;
+//     for(uint32_t i=0; i<MAX_thread_N;i++){
+//         if(thread_status[i] == THP_IDLE){
+//             if(task_queue.empty())
+//                 break;
+//             auto task_list = task_queue.front();
+//             task_queue.pop();
+//             thread_status[i] = THP_BUSY;
+//             thPool[i] = std::thread([this,task_list,i](){
+//                 for(auto f_list : task_list){
+//                     func_ptr f = (func_ptr)f_list[0];
+//                     void* args = f_list[1];
+//                     func_ptr cb = (func_ptr)f_list[2];
+//                     void* cb_args = f_list[3];
+//                     f(args);
+//                     if(cb != nullptr){
+//                         cb(cb_args);
+//                     }
+//                 }
+//                 this->thread_status[i] = THP_IDLE;
+//             });
+//             return i;
+
+//             // pool[i].detach();
+//         }
+//     }
+//     return -1;
+// }
+
 int32_t ThreadPool::arrange_task(){
     std::lock_guard<std::recursive_mutex> lock(status_mutex);
     if(task_queue.empty())
         return -1;
-    for(uint32_t i=0; i<MAX_thread_N;i++){
+    for(uint32_t i=0; i<MAX_thread_N; i++){
         if(thread_status[i] == THP_IDLE){
+            // 如果线程对象已经结束，先回收
+            if(thPool[i].joinable()) {
+                thPool[i].join();
+            }
+            // 重新创建线程对象
             if(task_queue.empty())
                 break;
             auto task_list = task_queue.front();
             task_queue.pop();
             thread_status[i] = THP_BUSY;
-            pool[i] = std::thread([this,task_list,i](){
+            thPool[i] = std::thread([this,task_list,i](){
                 for(auto f_list : task_list){
                     func_ptr f = (func_ptr)f_list[0];
                     void* args = f_list[1];
@@ -191,14 +228,42 @@ int32_t ThreadPool::arrange_task(){
                 this->thread_status[i] = THP_IDLE;
             });
             return i;
-
-            // pool[i].detach();
+        }
+        // 如果线程对象不是空闲但已经结束，也可以重建
+        else if(!thPool[i].joinable()) {
+            // 重新创建线程对象
+            if(task_queue.empty())
+                break;
+            auto task_list = task_queue.front();
+            task_queue.pop();
+            thread_status[i] = THP_BUSY;
+            thPool[i] = std::thread([this,task_list,i](){
+                for(auto f_list : task_list){
+                    func_ptr f = (func_ptr)f_list[0];
+                    void* args = f_list[1];
+                    func_ptr cb = (func_ptr)f_list[2];
+                    void* cb_args = f_list[3];
+                    f(args);
+                    if(cb != nullptr){
+                        cb(cb_args);
+                    }
+                }
+                this->thread_status[i] = THP_IDLE;
+            });
+            return i;
         }
     }
     return -1;
 }
 
-
+void ThreadPool::reset_thread_to_idle(uint32_t id) {
+    if (id >= MAX_thread_N) return;
+    std::lock_guard<std::recursive_mutex> lock(status_mutex);
+    thread_status[id] = THP_IDLE; // 0 表示空闲
+    // if (thread_status[id] == 2) { // 2 表示完成
+    //     thread_status[id] = THP_IDLE; // 0 表示空闲
+    // }
+}
 
 /**
  * 下面的程序仅用于临时测试
